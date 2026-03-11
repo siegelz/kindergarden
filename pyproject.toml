@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kindergarden"
-version = "0.0.2"
+version = "0.0.3"
 description = "A robotics benchmark for physical reasoning."
 license = {text = "MIT"}
 readme = "README.md"
@@ -43,7 +43,7 @@ dynamic2d = [
 kinematic2d = [
    "tomsgeoms2d>=0.0.1",
 ]
-tidybot = [
+dynamic3d = [
    "mujoco==3.2.4",
    "opencv-python>=4.9.0",
    "gdown",
