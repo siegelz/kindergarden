@@ -160,6 +160,50 @@ class DemoCollector:
         self.truncated = False
         self.keys_pressed.clear()
 
+    def _update_keyboard_sticks(self) -> None:
+        """Drive the virtual sticks from held keyboard keys."""
+        if self.controller:
+            return
+
+        horizontal = 0.0
+        vertical = 0.0
+        rotation = 0.0
+
+        if "left" in self.keys_pressed:
+            horizontal -= 1.0
+        if "right" in self.keys_pressed:
+            horizontal += 1.0
+        if "up" in self.keys_pressed:
+            vertical += 1.0
+        if "down" in self.keys_pressed:
+            vertical -= 1.0
+        if "q" in self.keys_pressed:
+            rotation += 1.0
+        if "e" in self.keys_pressed:
+            rotation -= 1.0
+
+        self.right_stick.x = horizontal
+        self.right_stick.y = vertical
+        self.right_stick.is_active = horizontal != 0.0 or vertical != 0.0
+        self.left_stick.x = rotation
+        self.left_stick.y = 0.0
+        self.left_stick.is_active = rotation != 0.0
+
+    def _has_continuous_keyboard_input(self) -> bool:
+        """Return whether held keys should keep stepping the environment."""
+        continuous_keys = {
+            "up",
+            "down",
+            "left",
+            "right",
+            "q",
+            "e",
+            "w",
+            "s",
+            "space",
+        }
+        return any(key in continuous_keys for key in self.keys_pressed)
+
     def save_demo(self) -> None:
         """Save the current demo to disk."""
         if not self.observations or not self.actions:
@@ -234,15 +278,15 @@ class DemoCollector:
             if event.type == pygame.QUIT:
                 return False
             if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return False
                 if event.key == pygame.K_r:
                     self.reset_env()
                 elif event.key == pygame.K_g:
                     self.save_demo()
-                elif event.key == pygame.K_q:
-                    return False
                 else:
                     key_name = pygame.key.name(event.key)
-                    if key_name not in {"r", "g", "q"}:
+                    if key_name not in {"r", "g"}:
                         self.keys_pressed.add(key_name)
                         some_action_input = True
             if event.type == pygame.KEYUP:
@@ -274,6 +318,9 @@ class DemoCollector:
                 elif event.button == 12:
                     self.keys_pressed.discard("s")
                     some_action_input = True
+        self._update_keyboard_sticks()
+        if self._has_continuous_keyboard_input():
+            some_action_input = True
         if some_action_input:
             self.step_env()
         return True
@@ -329,10 +376,11 @@ class DemoCollector:
             ]
         else:
             instructions = [
+                "Arrow Keys: Move robot | Q/E: Rotate",
                 "Mouse: Click analog sticks",
                 "W/S: Extend/retract arm",
                 "Space: Toggle vacuum",
-                "R: Reset | G: Save | Q: Quit",
+                "R: Reset | G: Save | Esc: Quit",
             ]
         for i, instruction in enumerate(instructions):
             text_surface = self.font.render(instruction, True, (200, 200, 200))
