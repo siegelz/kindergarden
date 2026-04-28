@@ -21,17 +21,14 @@ ASSETS_DIR = (
 )
 MIMICLABS_SCENES_DIR = ASSETS_DIR / "mimiclabs_scenes"
 
-# Google Drive URL for MimicLabs assets
-ASSETS_URL = (
-    "https://drive.google.com/file/d/1k0dsJXFrqzlR1nPy8zo0vu9BnnezfkAm/view?usp=sharing"
-)
+# Google Drive file id for MimicLabs assets
+ASSETS_FILE_ID = "1k0dsJXFrqzlR1nPy8zo0vu9BnnezfkAm"
 
 
-def download_file_from_gdrive(url: str, download_dir: Path, dst_filename: str) -> None:
+def download_file_from_gdrive(download_dir: Path, dst_filename: str) -> None:
     """Download a file from Google Drive using gdown.
 
     Args:
-        url: Google Drive sharing URL
         download_dir: Directory to download to
         dst_filename: Destination filename
     """
@@ -39,15 +36,9 @@ def download_file_from_gdrive(url: str, download_dir: Path, dst_filename: str) -
     tmp_dir.mkdir(exist_ok=True, parents=True)
 
     # Download file
-    curr_dir = os.getcwd()
-    os.chdir(tmp_dir)
     print(f"Downloading from Google Drive to {tmp_dir}")
-    gdown.download(url, str(tmp_dir), quiet=False, fuzzy=True)
-    tmp_files = list(tmp_dir.iterdir())
-    if not tmp_files:
-        raise FileNotFoundError("No file downloaded from Google Drive")
-    tmp_path = tmp_files[0]
-    os.chdir(curr_dir)
+    tmp_path = tmp_dir / dst_filename
+    gdown.download(id=ASSETS_FILE_ID, output=str(tmp_path), quiet=False)
 
     # Move downloaded file to destination
     dst_path = download_dir / dst_filename
@@ -96,7 +87,7 @@ def download_mimiclabs_assets() -> None:
 
     # Download the assets zip file
     zip_filename = "assets.zip"
-    download_file_from_gdrive(ASSETS_URL, ASSETS_DIR, zip_filename)
+    download_file_from_gdrive(ASSETS_DIR, zip_filename)
 
     # Unzip the assets
     zip_path = ASSETS_DIR / zip_filename
