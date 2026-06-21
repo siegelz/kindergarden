@@ -708,12 +708,100 @@ class ObjectCentricPacking3DEnv(
             len(parts) == self._num_parts
         ), f"Expected {self._num_parts} parts, got {len(parts)}"
 
-        # Update parts
+        # Recreate parts from the incoming state. A fresh environment may have
+        # sampled different part geometry, so moving existing bodies is not enough.
+        self._destroy_parts()
         for i in range(self._num_parts):
-            name = list(parts.keys())[i]
-            pose = obs.get_object_pose(name)
-            part_id = self._object_name_to_pybullet_id(name)
+            name = f"part{i}"
+            part = obs.get_object_from_name(name)
+            pose = self._get_pybullet_pose_from_state(obs, name)
+            part_id = self._create_part_from_state(obs, part)
             set_pose(part_id, pose, self.physics_client_id)
+
+    def _destroy_parts(self) -> None:
+        """Remove all current part bodies and clear their geometry metadata."""
+        for part_id in set(self._part_ids.values()):
+            p.removeBody(part_id, physicsClientId=self.physics_client_id)
+        self._part_ids = {}
+        self._part_ids_to_type = {}
+        self._part_id_to_half_extents = {}
+        self._part_ids_to_triangle_features = {}
+
+    def _create_part_from_state(
+        self,
+        obs: Packing3DObjectCentricState,
+        part: Object,
+    ) -> int:
+        """Create one part body from object-centric state geometry fields."""
+        if part.type == Kinematic3DCuboidType:
+            half_extents = (
+                obs.get(part, "half_extent_x"),
+                obs.get(part, "half_extent_y"),
+                obs.get(part, "half_extent_z"),
+            )
+            part_id = create_pybullet_block_with_peg(
+                self.config.part_rgba,
+                half_extents=half_extents,
+                physics_client_id=self.physics_client_id,
+            )
+            self._part_ids[part.name] = part_id
+            self._part_ids_to_type[part_id] = Kinematic3DCuboidType
+            self._part_id_to_half_extents[part_id] = half_extents
+            self._part_ids_to_triangle_features[part_id] = (
+                half_extents[0],
+                half_extents[1],
+                half_extents[2],
+                -1.0,
+            )
+            return part_id
+
+        if part.type == Kinematic3DTriangleType:
+            side_a, side_b, depth, triangle_type = obs.get_object_triangle_features(
+                part.name
+            )
+            half_extents = (
+                max(side_a, side_b) / 2,
+                max(side_a, side_b) / 2,
+                depth / 2,
+            )
+            part_id = create_pybullet_triangle_with_peg(
+                self.config.part_rgba,
+                triangle_type={0: "equilateral", 1: "right"}[int(triangle_type)],
+                side_lengths=(side_a, side_b),
+                depth=depth,
+                physics_client_id=self.physics_client_id,
+            )
+            self._part_ids[part.name] = part_id
+            self._part_ids_to_type[part_id] = Kinematic3DTriangleType
+            self._part_id_to_half_extents[part_id] = half_extents
+            self._part_ids_to_triangle_features[part_id] = (
+                side_a,
+                side_b,
+                depth,
+                triangle_type,
+            )
+            return part_id
+
+        raise NotImplementedError(f"Unsupported Packing3D part type: {part.type}")
+
+    def _get_pybullet_pose_from_state(
+        self, obs: Packing3DObjectCentricState, name: str
+    ) -> Pose:
+        """Get the raw PyBullet pose from state features for state restoration."""
+        obj = obs.get_object_from_name(name)
+        return Pose(
+            (
+                obs.get(obj, "pose_x"),
+                obs.get(obj, "pose_y"),
+                obs.get(obj, "pose_z"),
+            ),
+            (
+                obs.get(obj, "pose_qx"),
+                obs.get(obj, "pose_qy"),
+                obs.get(obj, "pose_qz"),
+                obs.get(obj, "pose_qw"),
+            ),
+        )
 
     def _object_name_to_pybullet_id(self, object_name: str) -> int:
         if object_name == "rack":
